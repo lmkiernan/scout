@@ -1,31 +1,32 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Alert, StyleSheet } from 'react-native';
-import {
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword
-} from 'firebase/auth';
-import { getAuth } from 'firebase/auth';
 
-export default function SignIn() {
-  const [email, setEmail]       = useState('');
+interface SignInProps {
+  onSignIn?: (userData: { name: string; email: string; password: string }) => void;
+}
+
+export default function SignIn({ onSignIn }: SignInProps) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [mode, setMode]         = useState<'login'|'signup'>('login');
-  const auth = getAuth();
 
-  const handle = async () => {
-    try {
-      if (mode === 'signup') {
-        await createUserWithEmailAndPassword(auth, email, password);
-      } else {
-        await signInWithEmailAndPassword(auth, email, password);
-      }
-    } catch (e: any) {
-      Alert.alert('Error', e.message);
+  const handle = () => {
+    if (onSignIn) {
+      onSignIn({ name, email, password });
+    } else {
+      Alert.alert('Entered Info', `Name: ${name}\nEmail: ${email}\nPassword: ${password}`);
     }
   };
 
   return (
     <View style={styles.container}>
+      <TextInput
+        placeholder="Name"
+        autoCapitalize="words"
+        value={name}
+        onChangeText={setName}
+        style={styles.input}
+      />
       <TextInput
         placeholder="Email"
         autoCapitalize="none"
@@ -41,11 +42,7 @@ export default function SignIn() {
         onChangeText={setPassword}
         style={styles.input}
       />
-      <Button title={mode === 'signup' ? 'Sign Up' : 'Log In'} onPress={handle} />
-      <Button
-        title={mode === 'signup' ? 'Have an account? Log in' : 'No account? Sign up'}
-        onPress={() => setMode(mode === 'signup' ? 'login' : 'signup')}
-      />
+      <Button title="Submit" onPress={handle} />
     </View>
   );
 }
