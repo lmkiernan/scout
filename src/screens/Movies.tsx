@@ -10,5 +10,10 @@ export default function Movies() {
 }
 
 const styles = StyleSheet.create({
-  c: { flex:1, alignItems:'center', justifyContent:'center' }
+  c: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#ffffff',
+  }
 });

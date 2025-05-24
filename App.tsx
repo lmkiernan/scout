@@ -7,6 +7,8 @@ import Movies from './src/screens/Movies';
 import Books from './src/screens/Books';
 import Restaurants from './src/screens/Restaurants';
 import Wine from './src/screens/Wine';
+import { Ionicons } from '@expo/vector-icons';
+import ScoutLogo from './src/components/ScoutLogo';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -33,7 +35,31 @@ export default function App() {
 
   return (
     <NavigationContainer>
-      <Tab.Navigator>
+      <Tab.Navigator
+        screenOptions={({ route }) => ({
+          headerTitle: () => (
+            <ScoutLogo width={88} height={55} />
+          ),
+          headerTitleAlign: 'center',
+          tabBarIcon: ({ focused, color, size }) => {
+            let iconName: keyof typeof Ionicons.glyphMap = 'ellipse'; // default icon
+
+            if (route.name === 'Movies') {
+              iconName = focused ? 'film' : 'film-outline';
+            } else if (route.name === 'Books') {
+              iconName = focused ? 'book' : 'book-outline';
+            } else if (route.name === 'Restaurants') {
+              iconName = focused ? 'restaurant' : 'restaurant-outline';
+            } else if (route.name === 'Wine') {
+              iconName = focused ? 'wine' : 'wine-outline';
+            }
+
+            return <Ionicons name={iconName} size={size} color={color} />;
+          },
+          tabBarActiveTintColor: '#0c65bb',
+          tabBarInactiveTintColor: 'gray',
+        })}
+      >
         <Tab.Screen name="Movies" component={Movies} />
         <Tab.Screen name="Books" component={Books} />
         <Tab.Screen name="Restaurants" component={Restaurants} />
