@@ -7,9 +7,11 @@ import Movies from './src/screens/Movies';
 import Books from './src/screens/Books';
 import Restaurants from './src/screens/Restaurants';
 import Wine from './src/screens/Wine';
+import LetterboxdConnect from './src/screens/LetterboxdConnect';
 import { Ionicons } from '@expo/vector-icons';
 import ScoutLogo from './src/components/ScoutLogo';
 import { supabase } from './src/lib/subabase';
+import MoviesStack from './src/navigation/MovieStack';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -49,6 +51,11 @@ export default function App() {
           <Stack.Screen name="SignIn">
             {props => <SignIn {...props} onSignIn={handleSignIn} />}
           </Stack.Screen>
+          <Stack.Screen
+            name="LetterboxdConnect"
+            component={LetterboxdConnect}
+            options={{ presentation: 'modal', headerShown: true, title: 'Connect Letterboxd' }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
     );
@@ -81,7 +88,7 @@ export default function App() {
           tabBarInactiveTintColor: 'gray',
         })}
       >
-        <Tab.Screen name="Movies" component={Movies} />
+        <Tab.Screen name="Movies" component={MoviesStack} />
         <Tab.Screen name="Books" component={Books} />
         <Tab.Screen name="Restaurants" component={Restaurants} />
         <Tab.Screen name="Wine" component={Wine} />
