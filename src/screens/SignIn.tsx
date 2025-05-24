@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { supabase } from '../lib/subabase';
 import {
   SafeAreaView,
   View,
@@ -20,11 +21,32 @@ export default function SignIn({ onSignIn }: SignInProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  const handle = () => {
-    if (onSignIn) {
-      onSignIn({ name, email, password });
-    } else {
-      Alert.alert('Entered Info', `Name: ${name}\nEmail: ${email}\nPassword: ${password}`);
+  const handle = async () => {
+    if (!email || !password) {
+      Alert.alert('Missing Info', 'Please enter both email and password.');
+      return;
+    }
+    console.log('Handle function called');
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: { name }
+        }
+      });
+      console.log('Supabase response:', { data, error });
+      if (error) {
+        Alert.alert('Sign Up Error', error.message);
+      } else {
+        Alert.alert('Sign Up Success', `Check your email (${email}) for a confirmation link!`);
+        if (onSignIn && data?.user) {
+          onSignIn({ name, email, password });
+        }
+      }
+    } catch (err) {
+      console.log('Unexpected error:', err);
+      Alert.alert('Unexpected Error', String(err));
     }
   };
 

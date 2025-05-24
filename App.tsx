@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -9,12 +9,33 @@ import Restaurants from './src/screens/Restaurants';
 import Wine from './src/screens/Wine';
 import { Ionicons } from '@expo/vector-icons';
 import ScoutLogo from './src/components/ScoutLogo';
+import { supabase } from './src/lib/subabase';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 export default function App() {
   const [user, setUser] = useState<any>(null);
+
+  // Check for session on mount
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data, error } = await supabase.auth.getSession();
+      if (data?.session) {
+        setUser(data.session.user);
+      }
+    };
+    checkSession();
+
+    // Optional: Listen for auth state changes (sign in/out)
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => {
+      listener?.subscription.unsubscribe();
+    };
+  }, []);
 
   // Handler to simulate sign in (replace with real logic later)
   const handleSignIn = (userData: any) => {
