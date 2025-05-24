@@ -1,7 +1,7 @@
 import * as React from "react"
 import Svg, { G, Path } from "react-native-svg"
 const SvgComponent = (props: React.ComponentProps<typeof Svg>) => (
-  <Svg viewBox="0 0 400 400" width={220} height={220} preserveAspectRatio="xMidYMid meet" {...props}>
+  <Svg viewBox="0 0 400 400" width={250} height={250} preserveAspectRatio="xMidYMid meet" {...props}>
     <G fillRule="evenodd">
       <Path
         fill="#0c65bb"
