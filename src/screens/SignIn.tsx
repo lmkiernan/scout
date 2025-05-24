@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, Button, Alert, StyleSheet } from 'react-native';
+import { View, TextInput, Button, Alert, StyleSheet, Image } from 'react-native';
 
 interface SignInProps {
   onSignIn?: (userData: { name: string; email: string; password: string }) => void;
@@ -20,6 +20,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
 
   return (
     <View style={styles.container}>
+      <Image source={require('../../assets/scout_final.png')} style={styles.logo} resizeMode="contain" />
       <TextInput
         placeholder="Name"
         autoCapitalize="words"
@@ -49,5 +50,6 @@ export default function SignIn({ onSignIn }: SignInProps) {
 
 const styles = StyleSheet.create({
   container: { flex:1, padding:20, justifyContent:'center' },
+  logo: { width: 160, height: 160, alignSelf: 'center', marginBottom: 30 },
   input: { height:40, borderWidth:1, marginBottom:10, padding:8 },
 });
