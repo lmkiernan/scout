@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, TextInput, Button, Alert, StyleSheet, Image } from 'react-native';
+import ScoutLogo from '../components/ScoutLogo';
 
 interface SignInProps {
   onSignIn?: (userData: { name: string; email: string; password: string }) => void;
@@ -20,7 +21,7 @@ export default function SignIn({ onSignIn }: SignInProps) {
 
   return (
     <View style={styles.container}>
-      <Image source={require('../../assets/scout_final.png')} style={styles.logo} resizeMode="contain" />
+      <ScoutLogo style={styles.logo} />
       <TextInput
         placeholder="Name"
         autoCapitalize="words"
