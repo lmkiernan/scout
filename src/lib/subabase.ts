@@ -62,9 +62,21 @@ export async function getLetterboxdRawImport(userId: string) {
   return data?.data ?? null;
 }
 
-export async function saveMovieSuggestionReason(userId: string, reason: string) {
-  // Assumes you have a table 'movie_suggestions' with columns 'user_id' and 'reason'
+export async function saveMovieSuggestion(userId: string, title: string, reason: string) {
+  // Assumes you have a table 'movie_suggestions' with columns 'user_id', 'title', and 'reason'
   return supabase.from('movie_suggestions').insert([
-    { user_id: userId, reason }
+    { user_id: userId, title, reason }
   ]);
+}
+
+export async function getFirstMovieSuggestion(userId: string) {
+  const { data, error } = await supabase
+    .from('movie_suggestions')
+    .select('title, reason')
+    .eq('user_id', userId)
+    .order('id', { ascending: true }) // or 'created_at' if you prefer
+    .limit(1)
+    .single();
+  if (error) throw error;
+  return data;
 }

@@ -4,7 +4,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
 import type { FilmRatingMap } from '../lib/letterboxd';
-import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestionReason } from '../lib/subabase';
+import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, getFirstMovieSuggestion } from '../lib/subabase';
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
 import { GEMINI_API_KEY } from '@env'; // Add to your .env
@@ -13,29 +13,41 @@ declare module '@env' {
   export const GEMINI_API_KEY: string;
 }
 
+function extractFirstJsonArray(text: string): string | null {
+  const match = text.match(/\[\s*{[\s\S]*?}\s*\]/);
+  return match ? match[0] : null;
+}
+
 export default function Movies({ isConnected = false }: { isConnected?: boolean }) {
   const navigation = useNavigation<NativeStackNavigationProp<MoviesStackParamList>>();
   const route = useRoute<RouteProp<MoviesStackParamList, 'MoviesHome'>>();
   const [ratings, setRatings] = useState<FilmRatingMap | undefined>(route.params?.ratings);
   const [letterboxdUsername, setLetterboxdUsername] = useState<string | null>(null);
-  const [gptOutput, setGptOutput] = useState<string | null>(null);
+  const [suggestion, setSuggestion] = useState<{ title: string; reason: string } | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchUsername = async () => {
+    const fetchUsernameAndSuggestion = async () => {
       const user = await supabase.auth.getUser();
       const userId = user?.data?.user?.id;
       if (userId) {
         try {
           const username = await getLetterboxdUsername(userId);
           setLetterboxdUsername(username);
+          if (username) {
+            setLoading(true);
+            try {
+              const s = await getFirstMovieSuggestion(userId);
+              setSuggestion(s ?? null);
+            } catch {}
+            setLoading(false);
+          }
         } catch (e) {
-          // handle error or set to null
           setLetterboxdUsername(null);
         }
       }
     };
-    fetchUsername();
+    fetchUsernameAndSuggestion();
   }, []);
 
   const handleConnectPress = () => {
@@ -54,22 +66,50 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
       if (!userId) throw new Error('No user');
       const raw = await getLetterboxdRawImport(userId);
       if (!raw) throw new Error('No Letterboxd data found');
-      const prompt = 'Give me 10 movies that assuredly do not appear on this list that I should watch next and a description of to why based on the movies that I have seen and rated highly from my Letterboxd data!';
+      const prompt = `Give me 10 movies I should watch next based on my Letterboxd data. For each, provide a title and a short reason, and output as a JSON array like this:
+      [
+        {"title": "Movie Title", "reason": "Why you recommend it"},
+        ...
+      ]`;
       const response = await askChatGPTAboutLetterboxd(raw, prompt);
-      setGptOutput(response);
-      await saveMovieSuggestionReason(userId, response);
+      console.log('LLM response:', response);
+      let suggestions: { title: string; reason: string }[] = [];
+      let jsonStr = response;
+      const extracted = extractFirstJsonArray(response);
+      if (extracted) jsonStr = extracted;
+      try {
+        suggestions = JSON.parse(jsonStr);
+        console.log('Parsed suggestions:', suggestions);
+      } catch (e) {
+        console.log('Failed to parse suggestions:', e, response);
+      }
+      for (const suggestion of suggestions) {
+        const { error } = await saveMovieSuggestion(userId, suggestion.title, suggestion.reason);
+        if (error) console.log('Supabase insert error:', error);
+      }
+      // After saving, fetch the first suggestion again
+      const s = await getFirstMovieSuggestion(userId);
+      setSuggestion(s ?? null);
     } catch (e) {
-      setGptOutput(String(e));
+      setSuggestion(null);
     }
     setLoading(false);
   };
 
   if (letterboxdUsername) {
-    if (gptOutput) {
+    if (loading) {
+      return (
+        <View style={styles.container}>
+          <Text style={styles.heading}>Loading your movie suggestion...</Text>
+        </View>
+      );
+    }
+    if (suggestion) {
       return (
         <ScrollView style={styles.scroll}>
-          <Text style={styles.heading}>Your Movie Suggestions</Text>
-          <Text style={{ marginTop: 24, fontSize: 16, color: '#333' }}>{gptOutput}</Text>
+          <Text style={styles.heading}>Your First Movie Suggestion</Text>
+          <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 24 }}>{suggestion.title}</Text>
+          <Text style={{ marginTop: 16, fontSize: 16, color: '#333' }}>{suggestion.reason}</Text>
         </ScrollView>
       );
     }
