@@ -4,7 +4,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
 import type { FilmRatingMap } from '../lib/letterboxd';
-import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, getFirstMovieSuggestion } from '../lib/subabase';
+import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, getFirstMovieSuggestion, getAllMovieSuggestions } from '../lib/subabase';
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
 import { GEMINI_API_KEY } from '@env'; // Add to your .env
@@ -14,7 +14,10 @@ declare module '@env' {
 }
 
 function extractFirstJsonArray(text: string): string | null {
-  const match = text.match(/\[\s*{[\s\S]*?}\s*\]/);
+  // Remove Markdown code block wrappers
+  const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '');
+  // Extract the first JSON array
+  const match = cleaned.match(/\[\s*{[\s\S]*?}\s*\]/);
   return match ? match[0] : null;
 }
 
@@ -23,11 +26,12 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
   const route = useRoute<RouteProp<MoviesStackParamList, 'MoviesHome'>>();
   const [ratings, setRatings] = useState<FilmRatingMap | undefined>(route.params?.ratings);
   const [letterboxdUsername, setLetterboxdUsername] = useState<string | null>(null);
-  const [suggestion, setSuggestion] = useState<{ title: string; reason: string } | null>(null);
+  const [suggestions, setSuggestions] = useState<{ title: string; reason: string }[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchUsernameAndSuggestion = async () => {
+    const fetchUsernameAndSuggestions = async () => {
       const user = await supabase.auth.getUser();
       const userId = user?.data?.user?.id;
       if (userId) {
@@ -37,8 +41,9 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
           if (username) {
             setLoading(true);
             try {
-              const s = await getFirstMovieSuggestion(userId);
-              setSuggestion(s ?? null);
+              const all = await getAllMovieSuggestions(userId);
+              setSuggestions(all);
+              setCurrentIndex(0);
             } catch {}
             setLoading(false);
           }
@@ -47,7 +52,7 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
         }
       }
     };
-    fetchUsernameAndSuggestion();
+    fetchUsernameAndSuggestions();
   }, []);
 
   const handleConnectPress = () => {
@@ -66,34 +71,40 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
       if (!userId) throw new Error('No user');
       const raw = await getLetterboxdRawImport(userId);
       if (!raw) throw new Error('No Letterboxd data found');
-      const prompt = `Give me 10 movies I should watch next based on my Letterboxd data. For each, provide a title and a short reason, and output as a JSON array like this:
+      const prompt = `Give me 10 movies I should watch next based on my Letterboxd data. Make sure that there are no movies that I have already watched and strictly that none of them appear on my inputted JSON. For each, provide a title and a short, very personalized reason (based ONLY on my Letterboxd data), and output as a JSON array like this:
       [
         {"title": "Movie Title", "reason": "Why you recommend it"},
         ...
       ]`;
       const response = await askChatGPTAboutLetterboxd(raw, prompt);
       console.log('LLM response:', response);
-      let suggestions: { title: string; reason: string }[] = [];
+      let suggestionsArr: { title: string; reason: string }[] = [];
       let jsonStr = response;
       const extracted = extractFirstJsonArray(response);
       if (extracted) jsonStr = extracted;
       try {
-        suggestions = JSON.parse(jsonStr);
-        console.log('Parsed suggestions:', suggestions);
+        suggestionsArr = JSON.parse(jsonStr);
+        console.log('Parsed suggestions:', suggestionsArr);
       } catch (e) {
         console.log('Failed to parse suggestions:', e, response);
       }
-      for (const suggestion of suggestions) {
+      for (const suggestion of suggestionsArr) {
         const { error } = await saveMovieSuggestion(userId, suggestion.title, suggestion.reason);
         if (error) console.log('Supabase insert error:', error);
       }
-      // After saving, fetch the first suggestion again
-      const s = await getFirstMovieSuggestion(userId);
-      setSuggestion(s ?? null);
+      // After saving, fetch all suggestions again
+      const all = await getAllMovieSuggestions(userId);
+      setSuggestions(all);
+      setCurrentIndex(0);
     } catch (e) {
-      setSuggestion(null);
+      setSuggestions([]);
+      setCurrentIndex(0);
     }
     setLoading(false);
+  };
+
+  const handleNext = () => {
+    setCurrentIndex((prev) => (suggestions.length > 0 ? (prev + 1) % suggestions.length : 0));
   };
 
   if (letterboxdUsername) {
@@ -104,12 +115,18 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
         </View>
       );
     }
-    if (suggestion) {
+    if (suggestions.length > 0) {
+      const suggestion = suggestions[currentIndex];
       return (
         <ScrollView style={styles.scroll}>
-          <Text style={styles.heading}>Your First Movie Suggestion</Text>
+          <Text style={styles.heading}>Your Movie Suggestion</Text>
           <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 24 }}>{suggestion.title}</Text>
           <Text style={{ marginTop: 16, fontSize: 16, color: '#333' }}>{suggestion.reason}</Text>
+          {suggestions.length > 1 && (
+            <TouchableOpacity style={[styles.button, { marginTop: 32 }]} onPress={handleNext}>
+              <Text style={styles.buttonText}>Next Suggestion</Text>
+            </TouchableOpacity>
+          )}
         </ScrollView>
       );
     }

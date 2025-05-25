@@ -80,3 +80,13 @@ export async function getFirstMovieSuggestion(userId: string) {
   if (error) throw error;
   return data;
 }
+
+export async function getAllMovieSuggestions(userId: string) {
+  const { data, error } = await supabase
+    .from('movie_suggestions')
+    .select('title, reason')
+    .eq('user_id', userId)
+    .order('id', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
