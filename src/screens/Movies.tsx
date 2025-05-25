@@ -1,14 +1,37 @@
-import React, { useState } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Image, ScrollView } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
 import type { FilmRatingMap } from '../lib/letterboxd';
+import { getLetterboxdUsername, getLetterboxdRawImport } from '../lib/subabase';
+import { supabase } from '../lib/subabase';
+import { askChatGPTAboutLetterboxd } from '../lib/openai';
 
 export default function Movies({ isConnected = false }: { isConnected?: boolean }) {
   const navigation = useNavigation<NativeStackNavigationProp<MoviesStackParamList>>();
-  const route = useRoute<RouteProp<MoviesStackParamList, 'Movies'>>();
+  const route = useRoute<RouteProp<MoviesStackParamList, 'MoviesHome'>>();
   const [ratings, setRatings] = useState<FilmRatingMap | undefined>(route.params?.ratings);
+  const [letterboxdUsername, setLetterboxdUsername] = useState<string | null>(null);
+  const [gptOutput, setGptOutput] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchUsername = async () => {
+      const user = await supabase.auth.getUser();
+      const userId = user?.data?.user?.id;
+      if (userId) {
+        try {
+          const username = await getLetterboxdUsername(userId);
+          setLetterboxdUsername(username);
+        } catch (e) {
+          // handle error or set to null
+          setLetterboxdUsername(null);
+        }
+      }
+    };
+    fetchUsername();
+  }, []);
 
   const handleConnectPress = () => {
     navigation.navigate('LetterboxdConnect', {
@@ -18,19 +41,54 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
     });
   };
 
-  if (ratings) {
+  const handleAskGPT = async () => {
+    setLoading(true);
+    try {
+      const user = await supabase.auth.getUser();
+      const userId = user?.data?.user?.id;
+      if (!userId) throw new Error('No user');
+      const raw = await getLetterboxdRawImport(userId);
+      if (!raw) throw new Error('No Letterboxd data found');
+      const apiKey = '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';
+      const prompt = 'Give me 10 movies that assuredly do not appear on this list that I should watch next and a description of to why based on the movies that I have seen and rated highly from my Letterboxd data!';
+      const response = await askChatGPTAboutLetterboxd(raw, prompt, apiKey);
+      setGptOutput(response);
+    } catch (e) {
+      setGptOutput(String(e));
+    }
+    setLoading(false);
+  };
+
+  if (letterboxdUsername) {
+    if (gptOutput) {
+      return (
+        <ScrollView style={styles.scroll}>
+          <Text style={styles.heading}>Your Movie Suggestions</Text>
+          <Text style={{ marginTop: 24, fontSize: 16, color: '#333' }}>{gptOutput}</Text>
+        </ScrollView>
+      );
+    }
     return (
-      <View style={styles.container}>
-        <Text style={styles.heading}>Your Letterboxd Ratings</Text>
-        <Text style={{ fontFamily: 'Courier', fontSize: 12, marginTop: 16 }}>
-          {JSON.stringify(ratings, null, 2)}
+      <ScrollView style={styles.scroll}>
+        <Text style={styles.heading}>Connected Letterboxd Account</Text>
+        <Text style={{ fontSize: 18, color: '#0c65bb', marginTop: 16 }}>
+          {letterboxdUsername}
         </Text>
-      </View>
+        <TouchableOpacity
+          style={[styles.button, { marginTop: 32 }]}
+          onPress={handleAskGPT}
+          disabled={loading}
+        >
+          <Text style={styles.buttonText}>
+            {loading ? 'Thinking...' : 'Get Movie Suggestions'}
+          </Text>
+        </TouchableOpacity>
+      </ScrollView>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.scroll}>
       <View style={styles.card}>
         <Image
           source={require('../../assets/Letterboxd-logo.png')}
@@ -51,7 +109,7 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -62,6 +120,11 @@ const styles = StyleSheet.create({
     padding: 20,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scroll: {
+    flex: 1,
+    width: '100%',
+    backgroundColor: '#f7f7f7',
   },
   card: {
     width: '100%',

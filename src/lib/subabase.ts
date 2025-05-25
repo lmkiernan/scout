@@ -28,7 +28,36 @@ export const supabase = createClient(
 
 export async function saveLetterboxdUsername(userId: string, username: string) {
   // Assumes you have a table 'letterboxd_users' with columns 'user_id' and 'username'
-  return supabase.from('letterboxd_users').upsert([
-    { user_id: userId, username }
+  return supabase.from('connected_accounts').upsert([
+    { user_id: userId, provider: 'letterboxd', provider_uid: username}
   ]);
+}
+
+export async function getLetterboxdUsername(userId: string) {
+  const { data, error } = await supabase
+    .from('connected_accounts')
+    .select('provider_uid')
+    .eq('user_id', userId)
+    .eq('provider', 'letterboxd')
+    .single();
+  if (error) throw error;
+  return data?.provider_uid ?? null;
+}
+
+export async function saveLetterboxdRawImport(userId: string, data: object) {
+  // Assumes you have a table 'raw_imports' with columns 'user_id', 'provider', and 'data'
+  return supabase.from('raw_imports').upsert([
+    { user_id: userId, provider: 'letterboxd', data }
+  ]);
+}
+
+export async function getLetterboxdRawImport(userId: string) {
+  const { data, error } = await supabase
+    .from('raw_imports')
+    .select('data')
+    .eq('user_id', userId)
+    .eq('provider', 'letterboxd')
+    .single();
+  if (error) throw error;
+  return data?.data ?? null;
 }

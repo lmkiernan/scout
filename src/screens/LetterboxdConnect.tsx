@@ -4,6 +4,8 @@ import { fetchFilmRatings } from '../lib/letterboxd';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
+import { saveLetterboxdUsername, saveLetterboxdRawImport } from '../lib/subabase';
+import { supabase } from '../lib/subabase';
 
 export default function LetterboxdConnect() {
   const [username, setUsername] = useState('');
@@ -17,6 +19,14 @@ export default function LetterboxdConnect() {
   const handleConnect = async () => {
     try {
       const ratings = await fetchFilmRatings(username);
+      const user = await supabase.auth.getUser();
+      const userId = user?.data?.user?.id;
+
+      if (userId) {
+        await saveLetterboxdUsername(userId, username);
+        await saveLetterboxdRawImport(userId, ratings);
+      }
+
       if (onConnected) {
         onConnected(ratings);
       }
