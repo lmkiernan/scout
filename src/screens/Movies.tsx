@@ -4,7 +4,7 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
 import type { FilmRatingMap } from '../lib/letterboxd';
-import { getLetterboxdUsername, getLetterboxdRawImport } from '../lib/subabase';
+import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestionReason } from '../lib/subabase';
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
 
@@ -53,6 +53,7 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
       const prompt = 'Give me 10 movies that assuredly do not appear on this list that I should watch next and a description of to why based on the movies that I have seen and rated highly from my Letterboxd data!';
       const response = await askChatGPTAboutLetterboxd(raw, prompt, apiKey);
       setGptOutput(response);
+      await saveMovieSuggestionReason(userId, response);
     } catch (e) {
       setGptOutput(String(e));
     }

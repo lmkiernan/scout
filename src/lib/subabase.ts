@@ -61,3 +61,10 @@ export async function getLetterboxdRawImport(userId: string) {
   if (error) throw error;
   return data?.data ?? null;
 }
+
+export async function saveMovieSuggestionReason(userId: string, reason: string) {
+  // Assumes you have a table 'movie_suggestions' with columns 'user_id' and 'reason'
+  return supabase.from('movie_suggestions').insert([
+    { user_id: userId, reason }
+  ]);
+}

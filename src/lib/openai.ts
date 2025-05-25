@@ -7,11 +7,11 @@ export async function askChatGPTAboutLetterboxd(json: object, prompt: string, ap
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
-      model: 'gpt-4o',
+      model: 'gpt-3.5-turbo',
       messages: [
         { role: 'system', content: systemPrompt }
       ],
-      max_tokens: 300,
+      max_tokens: 1000,
     }),
   });
   const data = await res.json();
