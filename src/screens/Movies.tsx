@@ -7,6 +7,11 @@ import type { FilmRatingMap } from '../lib/letterboxd';
 import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestionReason } from '../lib/subabase';
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
+import { GEMINI_API_KEY } from '@env'; // Add to your .env
+
+declare module '@env' {
+  export const GEMINI_API_KEY: string;
+}
 
 export default function Movies({ isConnected = false }: { isConnected?: boolean }) {
   const navigation = useNavigation<NativeStackNavigationProp<MoviesStackParamList>>();
@@ -49,9 +54,8 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
       if (!userId) throw new Error('No user');
       const raw = await getLetterboxdRawImport(userId);
       if (!raw) throw new Error('No Letterboxd data found');
-      const apiKey = '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';
       const prompt = 'Give me 10 movies that assuredly do not appear on this list that I should watch next and a description of to why based on the movies that I have seen and rated highly from my Letterboxd data!';
-      const response = await askChatGPTAboutLetterboxd(raw, prompt, apiKey);
+      const response = await askChatGPTAboutLetterboxd(raw, prompt);
       setGptOutput(response);
       await saveMovieSuggestionReason(userId, response);
     } catch (e) {
