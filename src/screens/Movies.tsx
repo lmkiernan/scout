@@ -1,15 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Image } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
+import type { FilmRatingMap } from '../lib/letterboxd';
 
 export default function Movies({ isConnected = false }: { isConnected?: boolean }) {
   const navigation = useNavigation<NativeStackNavigationProp<MoviesStackParamList>>();
+  const route = useRoute<RouteProp<MoviesStackParamList, 'Movies'>>();
+  const [ratings, setRatings] = useState<FilmRatingMap | undefined>(route.params?.ratings);
 
   const handleConnectPress = () => {
-    navigation.navigate('LetterboxdConnect');
+    navigation.navigate('LetterboxdConnect', {
+      onConnected: (ratings: FilmRatingMap) => {
+        setRatings(ratings);
+      }
+    });
   };
+
+  if (ratings) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.heading}>Your Letterboxd Ratings</Text>
+        <Text style={{ fontFamily: 'Courier', fontSize: 12, marginTop: 16 }}>
+          {JSON.stringify(ratings, null, 2)}
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -61,7 +79,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     marginBottom: 16,
-    tintColor: '#0c65bb',
   },
   heading: {
     fontSize: 22,

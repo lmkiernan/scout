@@ -2,10 +2,11 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import Movies from '../screens/Movies';
 import LetterboxdConnect from '../screens/LetterboxdConnect';
+import type { FilmRatingMap } from '../lib/letterboxd';
 
 export type MoviesStackParamList = {
-  Movies: undefined;
-  LetterboxdConnect: undefined;
+  Movies: { ratings?: FilmRatingMap } | undefined;
+  LetterboxdConnect: { onConnected: (ratings: FilmRatingMap) => void };
 };
 
 const Stack = createNativeStackNavigator<MoviesStackParamList>();

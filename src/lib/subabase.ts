@@ -17,7 +17,7 @@ export const supabase = createClient(
         // auto-persist sessions to storage
         persistSession: true,
   
-        // auto-refresh your token when it’s about to expire
+        // auto-refresh your token when it's about to expire
         autoRefreshToken: true,
   
         // React Native has no URL to detect, so disable
@@ -25,3 +25,10 @@ export const supabase = createClient(
       }
     }
   );
+
+export async function saveLetterboxdUsername(userId: string, username: string) {
+  // Assumes you have a table 'letterboxd_users' with columns 'user_id' and 'username'
+  return supabase.from('letterboxd_users').upsert([
+    { user_id: userId, username }
+  ]);
+}
