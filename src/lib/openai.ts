@@ -2,7 +2,7 @@ export async function askChatGPTAboutLetterboxd(json: any, prompt: string) {
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: {
-      'Authorization': `Bearer ${"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"}`,
+      'Authorization': `Bearer ${"OPENAI_API_KEY"}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify({
