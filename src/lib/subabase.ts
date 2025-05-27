@@ -90,3 +90,24 @@ export async function getAllMovieSuggestions(userId: string) {
   if (error) throw error;
   return data ?? [];
 }
+
+// Check if a movie exists by title
+export async function getMovieByTitle(title: string) {
+  const { data, error } = await supabase
+    .from('movies')
+    .select('*')
+    .eq('title', title)
+    .single();
+  if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
+  return data;
+}
+
+// Add a new movie
+export async function addMovie({ title, posterUrl }: { title: string, posterUrl: string }) {
+  const { data, error } = await supabase
+    .from('movies')
+    .insert([{ title, poster: posterUrl }])
+    .single();
+  if (error) throw error;
+  return data;
+}

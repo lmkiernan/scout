@@ -4,19 +4,13 @@ import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
 import type { FilmRatingMap } from '../lib/letterboxd';
-import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, getFirstMovieSuggestion, getAllMovieSuggestions } from '../lib/subabase';
+import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, getAllMovieSuggestions, getMovieByTitle, addMovie } from '../lib/subabase';
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
-import { GEMINI_API_KEY } from '@env'; // Add to your .env
-
-declare module '@env' {
-  export const GEMINI_API_KEY: string;
-}
+import { getOmdbPoster } from '../lib/watchmode';
 
 function extractFirstJsonArray(text: string): string | null {
-  // Remove Markdown code block wrappers
   const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '');
-  // Extract the first JSON array
   const match = cleaned.match(/\[\s*{[\s\S]*?}\s*\]/);
   return match ? match[0] : null;
 }
@@ -29,6 +23,8 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
   const [suggestions, setSuggestions] = useState<{ title: string; reason: string }[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [posterUrl, setPosterUrl] = useState<string | null>(null);
+  const [watchProviders, setWatchProviders] = useState<string[]>([]);
 
   useEffect(() => {
     const fetchUsernameAndSuggestions = async () => {
@@ -55,6 +51,39 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
     fetchUsernameAndSuggestions();
   }, []);
 
+  useEffect(() => {
+    const fetchMetadata = async () => {
+      const suggestion = suggestions[currentIndex];
+      if (!suggestion) return;
+      try {
+        // 1. Check if movie exists in Supabase
+        let movie = await getMovieByTitle(suggestion.title);
+        if (movie && movie.poster) {
+          // Movie exists, use poster from DB
+          setPosterUrl(movie.poster);
+          console.log('Movie found in Supabase:', movie);
+        } else {
+          // Movie does not exist, fetch poster and add
+          const posterUrl = await getOmdbPoster(suggestion.title);
+          try {
+            // Only insert if authenticated and allowed by RLS
+            movie = await addMovie({ title: suggestion.title, posterUrl });
+            setPosterUrl(movie.poster);
+            console.log('Movie added to Supabase:', movie);
+          } catch (addErr) {
+            // If insert fails (e.g. RLS), just use the poster from OMDb
+            setPosterUrl(posterUrl);
+            console.log('Error adding movie:', addErr);
+          }
+        }
+      } catch (err) {
+        setPosterUrl(null);
+        console.log('Error in fetchMetadata:', err);
+      }
+    };
+    if (suggestions.length > 0) fetchMetadata();
+  }, [suggestions, currentIndex]);
+
   const handleConnectPress = () => {
     navigation.navigate('LetterboxdConnect', {
       onConnected: (ratings: FilmRatingMap) => {
@@ -77,14 +106,12 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
         ...
       ]`;
       const response = await askChatGPTAboutLetterboxd(raw, prompt);
-      console.log('LLM response:', response);
       let suggestionsArr: { title: string; reason: string }[] = [];
       let jsonStr = response;
       const extracted = extractFirstJsonArray(response);
       if (extracted) jsonStr = extracted;
       try {
         suggestionsArr = JSON.parse(jsonStr);
-        console.log('Parsed suggestions:', suggestionsArr);
       } catch (e) {
         console.log('Failed to parse suggestions:', e, response);
       }
@@ -92,7 +119,6 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
         const { error } = await saveMovieSuggestion(userId, suggestion.title, suggestion.reason);
         if (error) console.log('Supabase insert error:', error);
       }
-      // After saving, fetch all suggestions again
       const all = await getAllMovieSuggestions(userId);
       setSuggestions(all);
       setCurrentIndex(0);
@@ -122,6 +148,14 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
           <Text style={styles.heading}>Your Movie Suggestion</Text>
           <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 24 }}>{suggestion.title}</Text>
           <Text style={{ marginTop: 16, fontSize: 16, color: '#333' }}>{suggestion.reason}</Text>
+          {posterUrl && (
+            <Image
+              key={posterUrl}
+              source={{ uri: posterUrl }}
+              style={{ width: 240, height: 360, marginTop: 24, borderRadius: 8 }}
+              resizeMode="cover"
+            />
+          )}
           {suggestions.length > 1 && (
             <TouchableOpacity style={[styles.button, { marginTop: 32 }]} onPress={handleNext}>
               <Text style={styles.buttonText}>Next Suggestion</Text>
@@ -133,17 +167,9 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
     return (
       <ScrollView style={styles.scroll}>
         <Text style={styles.heading}>Connected Letterboxd Account</Text>
-        <Text style={{ fontSize: 18, color: '#0c65bb', marginTop: 16 }}>
-          {letterboxdUsername}
-        </Text>
-        <TouchableOpacity
-          style={[styles.button, { marginTop: 32 }]}
-          onPress={handleAskGPT}
-          disabled={loading}
-        >
-          <Text style={styles.buttonText}>
-            {loading ? 'Thinking...' : 'Get Movie Suggestions'}
-          </Text>
+        <Text style={{ fontSize: 18, color: '#0c65bb', marginTop: 16 }}>{letterboxdUsername}</Text>
+        <TouchableOpacity style={[styles.button, { marginTop: 32 }]} onPress={handleAskGPT} disabled={loading}>
+          <Text style={styles.buttonText}>{loading ? 'Thinking...' : 'Get Movie Suggestions'}</Text>
         </TouchableOpacity>
       </ScrollView>
     );
@@ -152,11 +178,7 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
   return (
     <ScrollView style={styles.scroll}>
       <View style={styles.card}>
-        <Image
-          source={require('../../assets/Letterboxd-logo.png')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <Image source={require('../../assets/Letterboxd-logo.png')} style={styles.logo} resizeMode="contain" />
         <Text style={styles.heading}>
           {isConnected ? 'Refresh Your Letterboxd Data' : 'Connect Your Letterboxd'}
         </Text>
@@ -166,9 +188,7 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
             : 'Import watched movies and ratings for personalized suggestions.'}
         </Text>
         <TouchableOpacity style={styles.button} onPress={handleConnectPress}>
-          <Text style={styles.buttonText}>
-            {isConnected ? 'Refresh Data' : 'Connect Letterboxd'}
-          </Text>
+          <Text style={styles.buttonText}>{isConnected ? 'Refresh Data' : 'Connect Letterboxd'}</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>
