@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import ScoutLogo from './src/components/ScoutLogo';
 import { supabase } from './src/lib/subabase';
 import MoviesStack from './src/navigation/MovieStack';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -46,53 +47,57 @@ export default function App() {
 
   if (!user) {
     return (
-      <NavigationContainer>
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="SignIn">
-            {props => <SignIn {...props} onSignIn={handleSignIn} />}
-          </Stack.Screen>
-          <Stack.Screen
-            name="LetterboxdConnect"
-            component={LetterboxdConnect}
-            options={{ presentation: 'modal', headerShown: true, title: 'Connect Letterboxd' }}
-          />
-        </Stack.Navigator>
-      </NavigationContainer>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <NavigationContainer>
+          <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="SignIn">
+              {props => <SignIn {...props} onSignIn={handleSignIn} />}
+            </Stack.Screen>
+            <Stack.Screen
+              name="LetterboxdConnect"
+              component={LetterboxdConnect}
+              options={{ presentation: 'modal', headerShown: true, title: 'Connect Letterboxd' }}
+            />
+          </Stack.Navigator>
+        </NavigationContainer>
+      </GestureHandlerRootView>
     );
   }
 
   return (
-    <NavigationContainer>
-      <Tab.Navigator
-        screenOptions={({ route }) => ({
-          headerTitle: () => (
-            <ScoutLogo width={88} height={55} />
-          ),
-          headerTitleAlign: 'center',
-          tabBarIcon: ({ focused, color, size }) => {
-            let iconName: keyof typeof Ionicons.glyphMap = 'ellipse'; // default icon
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <NavigationContainer>
+        <Tab.Navigator
+          screenOptions={({ route }) => ({
+            headerTitle: () => (
+              <ScoutLogo width={88} height={55} />
+            ),
+            headerTitleAlign: 'center',
+            tabBarIcon: ({ focused, color, size }) => {
+              let iconName: keyof typeof Ionicons.glyphMap = 'ellipse'; // default icon
 
-            if (route.name === 'Movies') {
-              iconName = focused ? 'film' : 'film-outline';
-            } else if (route.name === 'Books') {
-              iconName = focused ? 'book' : 'book-outline';
-            } else if (route.name === 'Restaurants') {
-              iconName = focused ? 'restaurant' : 'restaurant-outline';
-            } else if (route.name === 'Wine') {
-              iconName = focused ? 'wine' : 'wine-outline';
-            }
+              if (route.name === 'Movies') {
+                iconName = focused ? 'film' : 'film-outline';
+              } else if (route.name === 'Books') {
+                iconName = focused ? 'book' : 'book-outline';
+              } else if (route.name === 'Restaurants') {
+                iconName = focused ? 'restaurant' : 'restaurant-outline';
+              } else if (route.name === 'Wine') {
+                iconName = focused ? 'wine' : 'wine-outline';
+              }
 
-            return <Ionicons name={iconName} size={size} color={color} />;
-          },
-          tabBarActiveTintColor: '#0c65bb',
-          tabBarInactiveTintColor: 'gray',
-        })}
-      >
-        <Tab.Screen name="Movies" component={MoviesStack} />
-        <Tab.Screen name="Books" component={Books} />
-        <Tab.Screen name="Restaurants" component={Restaurants} />
-        <Tab.Screen name="Wine" component={Wine} />
-      </Tab.Navigator>
-    </NavigationContainer>
+              return <Ionicons name={iconName} size={size} color={color} />;
+            },
+            tabBarActiveTintColor: '#0c65bb',
+            tabBarInactiveTintColor: 'gray',
+          })}
+        >
+          <Tab.Screen name="Movies" component={MoviesStack} />
+          <Tab.Screen name="Books" component={Books} />
+          <Tab.Screen name="Restaurants" component={Restaurants} />
+          <Tab.Screen name="Wine" component={Wine} />
+        </Tab.Navigator>
+      </NavigationContainer>
+    </GestureHandlerRootView>
   );
 }

@@ -7,9 +7,10 @@ function cleanTitle(title: string) {
 
 export async function getOmdbPoster(title: string) {
   const cleanedTitle = cleanTitle(title);
-  const url = `https://www.omdbapi.com/?apikey=KEYHERE&t=${encodeURIComponent(cleanedTitle)}`;
+  const url = `https://www.omdbapi.com/?apikey=APIKEYHERE&t=${encodeURIComponent(cleanedTitle)}`;
   const res = await fetch(url);
   const data = await res.json();
+  console.log('OMDb API response:', data);
   if (data && data.Poster && data.Poster !== 'N/A') {
     return data.Poster;
   }

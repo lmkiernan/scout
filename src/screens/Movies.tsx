@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, TouchableOpacity, Text, StyleSheet, Image, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, Image, ScrollView, Animated, Dimensions } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { MoviesStackParamList } from '../navigation/MovieStack';
@@ -8,6 +8,7 @@ import { getLetterboxdUsername, getLetterboxdRawImport, saveMovieSuggestion, get
 import { supabase } from '../lib/subabase';
 import { askChatGPTAboutLetterboxd } from '../lib/openai';
 import { getOmdbPoster } from '../lib/watchmode';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 function extractFirstJsonArray(text: string): string | null {
   const cleaned = text.replace(/```(?:json)?/gi, '').replace(/```/g, '');
@@ -56,24 +57,30 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
       const suggestion = suggestions[currentIndex];
       if (!suggestion) return;
       try {
-        // 1. Check if movie exists in Supabase
+        // 1. Try to get the movie from Supabase
         let movie = await getMovieByTitle(suggestion.title);
         if (movie && movie.poster) {
-          // Movie exists, use poster from DB
           setPosterUrl(movie.poster);
           console.log('Movie found in Supabase:', movie);
         } else {
-          // Movie does not exist, fetch poster and add
+          // 2. If not found, fetch poster from OMDb
           const posterUrl = await getOmdbPoster(suggestion.title);
+          console.log('OMDb posterUrl:', posterUrl, 'for', suggestion.title);
+          // 3. Upsert (insert or update) the movie
           try {
-            // Only insert if authenticated and allowed by RLS
-            movie = await addMovie({ title: suggestion.title, posterUrl });
-            setPosterUrl(movie.poster);
-            console.log('Movie added to Supabase:', movie);
+            const { data, error } = await supabase
+              .from('movies')
+              .upsert([{ title: suggestion.title, poster: posterUrl, metadata: {} }], { onConflict: 'title' })
+              .select()
+              .single();
+            if (error) throw error;
+            setPosterUrl(data.poster);
+            console.log('Movie upserted to Supabase:', data);
           } catch (addErr) {
-            // If insert fails (e.g. RLS), just use the poster from OMDb
-            setPosterUrl(posterUrl);
-            console.log('Error adding movie:', addErr);
+            // If upsert fails (e.g. due to race), fetch the movie again and use its poster
+            console.log('Error upserting movie, trying to fetch again:', addErr);
+            movie = await getMovieByTitle(suggestion.title);
+            setPosterUrl(movie?.poster ?? posterUrl);
           }
         }
       } catch (err) {
@@ -133,6 +140,13 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
     setCurrentIndex((prev) => (suggestions.length > 0 ? (prev + 1) % suggestions.length : 0));
   };
 
+  const handleYes = () => {
+    const suggestion = suggestions[currentIndex];
+    if (suggestion) {
+      console.log('Yes pressed', suggestion.title);
+    }
+  };
+
   if (letterboxdUsername) {
     if (loading) {
       return (
@@ -144,23 +158,35 @@ export default function Movies({ isConnected = false }: { isConnected?: boolean 
     if (suggestions.length > 0) {
       const suggestion = suggestions[currentIndex];
       return (
-        <ScrollView style={styles.scroll}>
-          <Text style={styles.heading}>Your Movie Suggestion</Text>
-          <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 24 }}>{suggestion.title}</Text>
-          <Text style={{ marginTop: 16, fontSize: 16, color: '#333' }}>{suggestion.reason}</Text>
-          {posterUrl && (
-            <Image
-              key={posterUrl}
-              source={{ uri: posterUrl }}
-              style={{ width: 240, height: 360, marginTop: 24, borderRadius: 8 }}
-              resizeMode="cover"
-            />
-          )}
-          {suggestions.length > 1 && (
-            <TouchableOpacity style={[styles.button, { marginTop: 32 }]} onPress={handleNext}>
-              <Text style={styles.buttonText}>Next Suggestion</Text>
+        <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+          <PanGestureHandler
+            onHandlerStateChange={({ nativeEvent }) => {
+              if (nativeEvent.state === State.END && nativeEvent.translationX > 60) {
+                handleNext();
+              }
+            }}
+          >
+            <View style={styles.posterContainer}>
+              {posterUrl && (
+                <Image
+                  key={posterUrl}
+                  source={{ uri: posterUrl as string }}
+                  style={styles.poster}
+                  resizeMode="cover"
+                />
+              )}
+              <Text style={{ fontSize: 20, fontWeight: 'bold', marginTop: 24 }}>{suggestion.title}</Text>
+              <Text style={[styles.reasonText]}>{suggestion.reason}</Text>
+            </View>
+          </PanGestureHandler>
+          <View style={styles.buttonRow}>
+            <TouchableOpacity style={styles.smallButton} onPress={handleYes}>
+              <Text style={styles.buttonText}>Yes</Text>
             </TouchableOpacity>
-          )}
+            <TouchableOpacity style={styles.smallButton} onPress={() => console.log('Seen Before pressed')}>
+              <Text style={styles.buttonText}>Seen Before</Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       );
     }
@@ -205,8 +231,23 @@ const styles = StyleSheet.create({
   },
   scroll: {
     flex: 1,
-    width: '100%',
     backgroundColor: '#f7f7f7',
+  },
+  scrollContent: {
+    alignItems: 'center',
+    paddingTop: 32,
+    paddingBottom: 32,
+    minHeight: '100%',
+  },
+  posterContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  poster: {
+    width: 240,
+    height: 360,
+    borderRadius: 8,
+    marginBottom: 16,
   },
   card: {
     width: '100%',
@@ -249,5 +290,27 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
+    width: '100%',
+    marginTop: 40,
+    marginBottom: 16,
+  },
+  smallButton: {
+    backgroundColor: '#0c65bb',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    marginHorizontal: 8,
+  },
+  reasonText: {
+    marginTop: 16,
+    fontSize: 16,
+    color: '#333',
+    paddingHorizontal: 24,
+    textAlign: 'center',
   },
 });
